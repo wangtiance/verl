@@ -237,6 +237,10 @@ agent:
   #   max_terms: 6
   agent_loop_config_path: null
 
+  # Fully qualified class name for a custom AgentLoopManager / AgentFramework.
+  # When set, the trainer instantiates this class instead of the default AgentLoopManager.
+  agent_loop_manager_class: null
+
   # custom async server configs
   custom_async_server:
 
@@ -248,6 +252,40 @@ agent:
 
     # Class name of the custom async server class (e.g. AsyncvLLMServer)
     name: null
+
+# Agent framework configs (verl.agent) for session-based agent loops
+agent_framework:
+
+  _target_: verl.workers.config.AgentFrameworkConfig
+
+  # When True, use AgentFramework for generation instead of AgentLoopManager.
+  enable: false
+
+  # Fully qualified class name for the AgentFramework.
+  # When null, defaults to OpenAICompatibleAgentFramework.
+  # Example: "recipe.swe_agent.swe_agent_framework.SWEAgentFramework"
+  agent_framework_class: null
+
+  # Path to a YAML config file for the agent framework.
+  # Framework-specific — e.g. SWEAgentFramework uses this for its runtime config.
+  config_path: null
+
+  # Number of GatewayActor instances to create.
+  gateway_count: 1
+
+  # Fully qualified function path for the agent runner (async).
+  # Signature: async def agent_runner(*, raw_prompt, session, sample_index) -> None
+  agent_runner: null
+
+  # Fully qualified function path for the reward function.
+  # Signature: def reward_fn(ctx: SessionRewardContext) -> list[float]
+  reward_fn: null
+
+  # Timeout (seconds) for waiting for completion after agent run.
+  completion_timeout: 30.0
+
+  # Whether to wait for completion after agent run.
+  wait_for_completion_after_agent_run: false
 
 # Checkpoint Engine config for update weights from trainer to rollout
 checkpoint_engine:

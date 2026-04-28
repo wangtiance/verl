@@ -34,6 +34,7 @@ __all__ = [
     "DiffusionRolloutConfig",
     "CheckpointEngineConfig",
     "SkipConfig",
+    "AgentFrameworkConfig",
 ]
 
 
@@ -102,6 +103,42 @@ class AgentLoopConfig(BaseConfig):
     # Fully qualified class name for custom AgentLoopManager (e.g., "mypackage.module.MyManager").
     # Security: This class will be dynamically imported via importlib. Only use trusted class paths.
     agent_loop_manager_class: Optional[str] = None
+
+@dataclass
+class AgentFrameworkConfig(BaseConfig):
+    """Configuration for the external agent framework (verl.agent)."""
+
+    # When True, the trainer creates a GatewayServingRuntime + AgentFramework
+    # instead of using the built-in AgentLoopManager.generate_sequences path.
+    enable: bool = False
+
+    # Fully qualified class name for the AgentFramework.
+    # When null, defaults to OpenAICompatibleAgentFramework.
+    # Example: "recipe.swe_agent.swe_agent_framework.SWEAgentFramework"
+    agent_framework_class: Optional[str] = None
+
+    # Path to a YAML config file for the agent framework.
+    # Framework-specific — e.g. SWEAgentFramework uses this for its runtime config.
+    config_path: Optional[str] = None
+
+    # Number of GatewayActor instances to create.
+    gateway_count: int = 1
+
+    # Fully qualified function path for the agent runner.
+    # Signature: async def agent_runner(*, raw_prompt, session, sample_index) -> None
+    # Example: "recipe.swe_agent.agent_runner.run_swe_agent"
+    agent_runner: Optional[str] = None
+
+    # Fully qualified function path for the reward function.
+    # Signature: def reward_fn(ctx: SessionRewardContext) -> list[float]
+    # Example: "recipe.swe_agent.reward_fn.swe_agent_reward_fn"
+    reward_fn: Optional[str] = None
+
+    # Timeout (seconds) for waiting for completion after agent run.
+    completion_timeout: float = 30.0
+
+    # Whether to wait for completion after agent run.
+    wait_for_completion_after_agent_run: bool = False
 
 
 @dataclass
@@ -232,6 +269,8 @@ class RolloutConfig(BaseConfig):
     calculate_log_probs: bool = False
 
     agent: AgentLoopConfig = field(default_factory=AgentLoopConfig)
+    
+    agent_framework: AgentFrameworkConfig = field(default_factory=AgentFrameworkConfig)
 
     trace: TraceConfig = field(default_factory=TraceConfig)
 

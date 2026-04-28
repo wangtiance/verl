@@ -552,7 +552,16 @@ class RayPPOTrainer:
             # pad to be divisible by dp_size
             size_divisor = self.config.actor_rollout_ref.rollout.agent.num_workers
             test_gen_batch_padded, pad_size = pad_dataproto_to_divisor(test_gen_batch, size_divisor)
-            test_output_gen_batch_padded = self.async_rollout_manager.generate_sequences(test_gen_batch_padded)
+            if self.agent_framework is not None:
+                import asyncio
+
+                td_input = test_gen_batch_padded.to_tensordict()
+                td_output = asyncio.run(
+                    self.agent_framework.generate_sequences(td_input)
+                )
+                test_output_gen_batch_padded = DataProto.from_tensordict(td_output)
+            else:
+                test_output_gen_batch_padded = self.async_rollout_manager.generate_sequences(test_gen_batch_padded)
 
             if self.use_rm and "rm_scores" not in test_output_gen_batch_padded.batch.keys():
                 # for colocate reward models, we need to sleep rollout model
@@ -861,6 +870,17 @@ class RayPPOTrainer:
             reward_loop_worker_handles=reward_loop_worker_handles,
             teacher_model_manager=self.teacher_model_manager,
         )
+        af_config = self.config.actor_rollout_ref.rollout.get("agent_framework", {})
+        if af_config and af_config.get("enable", False):
+            af_class_fqn = af_config.get("agent_framework_class")
+            assert af_class_fqn, "agent_framework.agent_framework_class must be set when agent_framework.enable=true"
+            AgentFrameworkClass = load_class_from_fqn(af_class_fqn, af_class_fqn.rsplit(".", 1)[-1])
+            self.agent_framework = AgentFrameworkClass.create(
+
+            )
+        else:        
+            self.agent_framework = None
+
 
         checkpoint_engine_config = omega_conf_to_dataclass(self.config.actor_rollout_ref.rollout.checkpoint_engine)
         # Support custom CheckpointEngineManager via config
@@ -1362,7 +1382,18 @@ class RayPPOTrainer:
                             gen_baseline_batch.meta_info["do_sample"] = False
                             if curr_step_profile:
                                 self.async_rollout_manager.start_profile()
-                            gen_baseline_output = self.async_rollout_manager.generate_sequences(gen_baseline_batch)
+                            if self.agent_framework is not None:
+                                # Agent framework works with TensorDict, convert back to DataProto
+                                import asyncio
+
+                                td_input = gen_batch_output.to_tensordict()
+                                td_output = asyncio.run(
+                                    self.agent_framework.generate_sequences(td_input)
+                                )
+                                gen_batch_output = DataProto.from_tensordict(td_output)
+                            else:
+                                gen_batch_output = self.async_rollout_manager.generate_sequences(gen_batch_output)         
+                            
                             self.checkpoint_manager.sleep_replicas()
                             if curr_step_profile:
                                 self.async_rollout_manager.stop_profile()
